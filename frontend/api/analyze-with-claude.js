@@ -84,16 +84,50 @@ Double-check that all subcategories are present in your JSON output.`;
         console.log("Claude raw response:", claudeResponseContent); // Log for debugging on Vercel
 
         let claudeAnalysis;
+       // frontend/api/analyze-with-claude.js
+// ... (rest of your code above)
+
+module.exports = async (req, res) => {
+    // ... (your existing code inside the module.exports function)
+
+    try {
+        // ... (your Anthropic API call for msg = await anthropic.messages.create(...) )
+
+        const claudeResponseContent = msg.content[0].text;
+        console.log("Claude raw response:", claudeResponseContent); // Keep this for debugging
+
+        let claudeAnalysis;
         try {
-            // Claude sometimes wraps JSON in markdown code blocks (```json ... ```)
-            // This regex removes those wraps to allow proper JSON parsing.
-            const jsonString = claudeResponseContent.replace(/```json\n|```/g, '').trim();
-            claudeAnalysis = JSON.parse(jsonString); // Parse the string into a JavaScript object
+            // Remove markdown code blocks if present (```json ... ```)
+            let cleanedResponse = claudeResponseContent.replace(/```json\n|```/g, '').trim();
+
+            // Find the first opening brace and the last closing brace
+            const firstBrace = cleanedResponse.indexOf('{');
+            const lastBrace = cleanedResponse.lastIndexOf('}');
+
+            if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+                throw new Error("No valid JSON object found in Claude's response.");
+            }
+
+            // Extract only the JSON part
+            const jsonString = cleanedResponse.substring(firstBrace, lastBrace + 1);
+
+            claudeAnalysis = JSON.parse(jsonString); // Attempt to parse the extracted string
+
         } catch (parseError) {
             console.error("Failed to parse Claude's JSON response:", parseError);
-            // If Claude doesn't return valid JSON, throw an error to indicate failure.
+            // Provide more context in the error message for easier debugging
             throw new Error("Claude did not return a valid JSON format. Raw response (partial): " + claudeResponseContent.substring(0, 500) + "...");
         }
+
+        // Send the parsed JSON analysis back to the frontend
+        res.status(200).json(claudeAnalysis);
+
+    } catch (error) {
+        console.error('Error in analyze-with-claude function:', error.message);
+        res.status(500).json({ error: 'Failed to analyze data with Claude: ' + error.message });
+    }
+};
 
         // Send the parsed JSON analysis back to the frontend
         res.status(200).json(claudeAnalysis);
