@@ -5,12 +5,16 @@ import { FileText, Calculator, TrendingUp, Users, Leaf, ChevronRight, CheckCircl
 const BarkaAssessmentApp = () => {
   const [step, setStep] = useState('select'); // 'select', 'bulk', 'manual', 'results'
   const [bulkData, setBulkData] = useState('');
-  const [scores, setScores] = useState({});
-  const [evidence, setEvidence] = useState({});
+  const [scores, setScores] = useState({}); // Stores manual/AI-suggested scores for each subcategory
+  const [evidence, setEvidence] = useState({}); // Stores manual/AI-suggested evidence for each subcategory
+  const [strengths, setStrengths] = useState({}); // NEW: Stores AI-generated strengths for each subcategory
+  const [gaps, setGaps] = useState({}); // NEW: Stores AI-generated gaps for each subcategory
+
   const [currentPillar, setCurrentPillar] = useState(0);
   const [companyName, setCompanyName] = useState('');
-  const [analysisResults, setAnalysisResults] = useState(null); // Stores Claude's raw output
-  const [finalReport, setFinalReport] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState(null); // Stores Claude's raw output (including strengths/gaps)
+  const [finalReport, setFinalReport] = useState(null); // Stores final calculated report data
+
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false); // For loading state during Claude API call
   const [analysisError, setAnalysisError] = useState(null); // For displaying API call errors
 
@@ -120,6 +124,8 @@ const BarkaAssessmentApp = () => {
 
       const autoScores = {};
       const autoEvidence = {};
+      const autoStrengths = {}; // NEW
+      const autoGaps = {}; // NEW
 
       if (claudeOutput.companyName) {
           setCompanyName(claudeOutput.companyName); // Update with Claude's extracted name if more accurate
@@ -130,11 +136,15 @@ const BarkaAssessmentApp = () => {
               const item = claudeOutput.subcategoryScoresAndEvidence[key];
               autoScores[key] = item.score;
               autoEvidence[key] = item.evidence;
+              autoStrengths[key] = item.strengths || []; // Store strengths, default to empty array
+              autoGaps[key] = item.gaps || []; // Store gaps, default to empty array
           }
       }
 
       setScores(autoScores);
       setEvidence(autoEvidence);
+      setStrengths(autoStrengths); // NEW
+      setGaps(autoGaps); // NEW
       setAnalysisResults(claudeOutput); // Store Claude's full output for display in manual step
       setStep('manual'); // Move to manual review step
     } catch (error) {
@@ -184,6 +194,9 @@ const BarkaAssessmentApp = () => {
             .pillar { margin: 20px 0; padding: 15px; border-left: 4px solid #3b82f6; background: #f8fafc; }
             .section { margin: 20px 0; }
             .section h3 { color: #1e40af; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+            .subcategory-detail { margin-top: 10px; padding-left: 15px; border-left: 2px solid #e5e7eb; }
+            .detail-list { list-style-type: disc; margin-left: 20px; }
+            .detail-list li { margin-bottom: 5px; }
             @media print { body { margin: 20px; } }
           </style>
         </head>
@@ -228,7 +241,9 @@ const BarkaAssessmentApp = () => {
   const generateReportHTML = () => {
     if (!finalReport) return '';
     
-    const evidenceList = Object.entries(evidence)
+    // The overall evidence list from the manual input is still here, but we'll prioritize detailed evidence
+    // from Claude in the subcategory breakdown.
+    const overallEvidenceList = Object.entries(evidence)
       .filter(([key, value]) => value && value.trim())
       .map(([key, value]) => {
         const [pillarIdx, subIdx] = key.split('-').map(Number);
@@ -255,11 +270,41 @@ const BarkaAssessmentApp = () => {
       </div>
 
       <div class="section">
-        <h3>Pillar Breakdown</h3>
-        ${pillars.map((pillar, index) => `
+        <h3>Pillar Breakdown & Detailed Assessment</h3>
+        ${pillars.map((pillar, pillarIndex) => `
           <div class="pillar">
             <h4>${pillar.name} (Weight: ${(pillar.weight * 100)}%)</h4>
-            <p>Score: <strong>${finalReport.pillarScores[index].toFixed(2)}/5.0</strong></p>
+            <p>Pillar Score: <strong>${finalReport.pillarScores[pillarIndex].toFixed(2)}/5.0</strong></p>
+            
+            ${pillar.subcategories.map((subcategory, subIndex) => {
+              const key = `${pillarIndex}-${subIndex}`;
+              const subScore = scores[key] || 0;
+              const subEvidence = evidence[key] || 'No specific evidence provided.';
+              const subStrengths = strengths[key] || [];
+              const subGaps = gaps[key] || [];
+
+              return `
+                <div class="subcategory-detail">
+                  <h5>${subcategory.name} (Weight: ${(subcategory.weight * 100)}% of ${pillar.name})</h5>
+                  <p>Score: <strong>${subScore.toFixed(1)}/5.0</strong></p>
+                  <p><strong>Evidence:</strong> ${subEvidence}</p>
+
+                  ${subStrengths.length > 0 ? `
+                    <h6>Strengths:</h6>
+                    <ul class="detail-list">
+                      ${subStrengths.map(s => `<li>${s}</li>`).join('')}
+                    </ul>
+                  ` : ''}
+
+                  ${subGaps.length > 0 ? `
+                    <h6>Gaps/Areas for Improvement:</h6>
+                    <ul class="detail-list">
+                      ${subGaps.map(g => `<li>${g}</li>`).join('')}
+                    </ul>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
           </div>
         `).join('')}
       </div>
@@ -286,17 +331,17 @@ const BarkaAssessmentApp = () => {
         </ul>
       </div>
 
-      ${evidenceList ? `
+      ${overallEvidenceList ? `
         <div class="section">
-          <h3>Supporting Evidence</h3>
+          <h3>General Supporting Evidence (from manual input)</h3>
           <ul>
-            ${evidenceList}
+            ${overallEvidenceList}
           </ul>
         </div>
       ` : ''}
 
       <div class="section">
-        <h3>Recommendations</h3>
+        <h3>General Recommendations</h3>
         ${finalReport.level === 'Investment Ready' ?
           '<ul><li>Prepare due diligence materials</li><li>Develop investor pitch materials</li><li>Consider optimization of existing processes</li></ul>' :
           finalReport.level === 'Near Ready' ?
@@ -336,7 +381,7 @@ const BarkaAssessmentApp = () => {
         totalWeight += subcategory.weight;
       });
       
-      return pillarScore / totalWeight;
+      return totalWeight > 0 ? pillarScore / totalWeight : 0; // Avoid division by zero
     });
     
     setFinalReport({
@@ -507,6 +552,9 @@ The system will analyze this text and suggest scores based on documented evidenc
               const key = `${currentPillar}-${subIndex}`;
               const currentScore = scores[key] || 0;
               const currentEvidence = evidence[key] || '';
+              const currentStrengths = strengths[key] || []; // NEW
+              const currentGaps = gaps[key] || []; // NEW
+              
               // analysisResults holds Claude's output
               const claudeSuggestion = analysisResults?.subcategoryScoresAndEvidence?.[key];
               
@@ -525,10 +573,18 @@ The system will analyze this text and suggest scores based on documented evidenc
                         {claudeSuggestion.evidence && (
                           <p className="text-blue-600 text-xs mt-1">Evidence: "{claudeSuggestion.evidence}"</p>
                         )}
+                        {claudeSuggestion.strengths && claudeSuggestion.strengths.length > 0 && (
+                          <p className="text-blue-600 text-xs mt-1">Strengths: {claudeSuggestion.strengths.join('; ')}</p>
+                        )}
+                        {claudeSuggestion.gaps && claudeSuggestion.gaps.length > 0 && (
+                          <p className="text-blue-600 text-xs mt-1">Gaps: {claudeSuggestion.gaps.join('; ')}</p>
+                        )}
                         <button
                           onClick={() => {
                             setScores({...scores, [key]: claudeSuggestion.score});
                             setEvidence({...evidence, [key]: claudeSuggestion.evidence});
+                            setStrengths({...strengths, [key]: claudeSuggestion.strengths}); // NEW
+                            setGaps({...gaps, [key]: claudeSuggestion.gaps}); // NEW
                           }}
                           className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
                         >
@@ -565,6 +621,32 @@ The system will analyze this text and suggest scores based on documented evidenc
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       rows="2"
                       placeholder="Provide evidence for your score..."
+                    />
+                  </div>
+
+                  {/* NEW: Manual input for Strengths and Gaps if not applying AI suggestion */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">
+                      Strengths (comma-separated)
+                    </label>
+                    <textarea
+                      value={currentStrengths.join(', ')}
+                      onChange={(e) => setStrengths({...strengths, [key]: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      rows="2"
+                      placeholder="e.g., Strong financial controls, Clear market strategy"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">
+                      Gaps/Areas for Improvement (comma-separated)
+                    </label>
+                    <textarea
+                      value={currentGaps.join(', ')}
+                      onChange={(e) => setGaps({...gaps, [key]: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      rows="2"
+                      placeholder="e.g., Need better documentation, Improve team training"
                     />
                   </div>
                 </div>
@@ -631,10 +713,10 @@ The system will analyze this text and suggest scores based on documented evidenc
                     </div>
                     <div>
                       <h3 className="font-semibold">{pillar.name}</h3>
-                      <div className="text-xs text-gray-600">Weight: ${(pillar.weight * 100)}%</div>
+                      <div className="text-xs text-gray-600">Weight: {(pillar.weight * 100)}%</div>
                     </div>
                   </div>
-                  <div className="text-2xl font-bold text-gray-800">${finalReport.pillarScores[index].toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-gray-800">{finalReport.pillarScores[index].toFixed(2)}</div>
                 </div>
               ))}
             </div>
@@ -642,15 +724,31 @@ The system will analyze this text and suggest scores based on documented evidenc
             <div className="bg-blue-50 rounded-lg p-6 mb-6">
               <h3 className="text-xl font-bold mb-3">Investment Readiness Summary</h3>
               <p className="text-gray-800">
-                ${companyName || 'The company'} achieved an overall investment readiness score of ${finalReport.score.toFixed(2)}/5.0,
-                placing it in the "${finalReport.level}" category.
-                ${finalReport.level === 'Investment Ready' && 'The company demonstrates strong performance across all areas and is attractive to investors.'}
-                ${finalReport.level === 'Near Ready' && 'The company has a good foundation with some targeted improvements needed.'}
-                ${finalReport.level === 'Too Early' && 'The company has fundamental gaps that require development before seeking investment.'}
+                {companyName || 'The company'} achieved an overall investment readiness score of {finalReport.score.toFixed(2)}/5.0,
+                placing it in the "{finalReport.level}" category.
+                {finalReport.level === 'Investment Ready' && 'The company demonstrates strong performance across all areas and is attractive to investors.'}
+                {finalReport.level === 'Near Ready' && 'The company has a good foundation with some targeted improvements needed.'}
+                {finalReport.level === 'Too Early' && 'The company has fundamental gaps that require development before seeking investment.'}
               </p>
             </div>
 
             <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => {
+                  setStep('select'); // Resets to the initial selection screen
+                  setScores({}); // Clear scores
+                  setEvidence({}); // Clear evidence
+                  setStrengths({}); // NEW: Clear strengths
+                  setGaps({}); // NEW: Clear gaps
+                  setBulkData(''); // Clear bulk data
+                  setCompanyName(''); // Clear company name
+                  setAnalysisResults(null); // Clear AI analysis results
+                  setFinalReport(null); // Clear final report
+                }}
+                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700" // Red for a "reset" action
+              >
+                Return to Start
+              </button>
               <button
                 onClick={() => setStep('manual')}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"

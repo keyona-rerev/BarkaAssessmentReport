@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
         const prompt = `YOUR ONLY RESPONSE MUST BE THE REQUESTED JSON OBJECT. DO NOT INCLUDE ANY CONVERSATIONAL TEXT, EXPLANATIONS, OR MARKDOWN BEFORE OR AFTER THE JSON.
 
 You are an expert investment readiness assessor for Barka, specializing in evaluating companies across Financial, Business Strategy, Legal & Operations, People & Communication, and Impact pillars.
-Your task is to analyze the provided company information and assign a score from 1 to 5 for each subcategory within these pillars. For each score, you must also extract a concise, direct piece of supporting evidence from the text.
+Your task is to analyze the provided company information and assign a score from 1 to 5 for each subcategory within these pillars. For each score, you must also extract a concise, direct piece of supporting evidence from the text. Additionally, you must provide a list of 1-3 specific strengths and 1-3 specific gaps (areas for improvement) for each subcategory, directly derived from the provided company information. If no clear strengths or gaps are identifiable for a subcategory, provide empty arrays.
 
 Here are the pillars and their subcategories with brief descriptions and keywords. The scores mean:
 1: Absent/Too Early
@@ -63,14 +63,18 @@ Your output MUST be a JSON object with the following structure:
   "subcategoryScoresAndEvidence": {
     "pillarIndex-subIndex": {
       "score": [1-5 integer],
-      "evidence": "Concise sentence or phrase directly from the provided text supporting the score."
+      "evidence": "Concise sentence or phrase directly from the provided text supporting the score.",
+      "strengths": ["List of identified strengths based on text (1-3 items)."],
+      "gaps": ["List of identified gaps/areas for improvement based on text (1-3 items)."]
     },
     // ... for all subcategories, e.g., "0-0", "0-1", "1-0", etc.
     // Ensure all subcategories defined above are present in the output, even if score is 1.
+    // If no strengths/gaps found, use empty arrays: "strengths": [], "gaps": []
   }
 }
 Ensure the evidence is a direct quote or a very close paraphrase from the input text, not your own summary. If no clear evidence is found for a subcategory, provide a score of 1 and evidence as "No direct evidence found in the provided text."
 Double-check that all subcategories are present in your JSON output.
+Each strength and gap should be a concise, actionable statement, no longer than a single sentence.
 
 YOUR RESPONSE MUST STRICTLY BE THE JSON OBJECT ONLY. DO NOT ADD ANY PREFIXES, SUFFIXES, OR EXPLANATORY TEXT.`;
 
