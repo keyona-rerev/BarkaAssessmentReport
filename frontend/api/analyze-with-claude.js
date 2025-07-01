@@ -32,7 +32,9 @@ module.exports = async (req, res) => {
     try {
         // This is the detailed instruction (prompt) we give to Claude.
         // It's crucial for getting good, structured results.
-        const prompt = `You are an expert investment readiness assessor for Barka, specializing in evaluating companies across Financial, Business Strategy, Legal & Operations, People & Communication, and Impact pillars.
+        const prompt = `YOUR ONLY RESPONSE MUST BE THE REQUESTED JSON OBJECT. DO NOT INCLUDE ANY CONVERSATIONAL TEXT, EXPLANATIONS, OR MARKDOWN BEFORE OR AFTER THE JSON.
+
+You are an expert investment readiness assessor for Barka, specializing in evaluating companies across Financial, Business Strategy, Legal & Operations, People & Communication, and Impact pillars.
 Your task is to analyze the provided company information and assign a score from 1 to 5 for each subcategory within these pillars. For each score, you must also extract a concise, direct piece of supporting evidence from the text.
 
 Here are the pillars and their subcategories with brief descriptions and keywords. The scores mean:
@@ -67,9 +69,10 @@ Your output MUST be a JSON object with the following structure:
     // Ensure all subcategories defined above are present in the output, even if score is 1.
   }
 }
-
 Ensure the evidence is a direct quote or a very close paraphrase from the input text, not your own summary. If no clear evidence is found for a subcategory, provide a score of 1 and evidence as "No direct evidence found in the provided text."
-Double-check that all subcategories are present in your JSON output.`;
+Double-check that all subcategories are present in your JSON output.
+
+YOUR RESPONSE MUST STRICTLY BE THE JSON OBJECT ONLY. DO NOT ADD ANY PREFIXES, SUFFIXES, OR EXPLANATORY TEXT.`;
 
         // Make the API call to Claude
         const msg = await anthropic.messages.create({
@@ -84,33 +87,20 @@ Double-check that all subcategories are present in your JSON output.`;
         console.log("Claude raw response:", claudeResponseContent); // Log for debugging on Vercel
 
         let claudeAnalysis;
-       // frontend/api/analyze-with-claude.js
-// ... (rest of your code above)
-
-module.exports = async (req, res) => {
-    // ... (your existing code inside the module.exports function)
-
-    try {
-        // ... (your Anthropic API call for msg = await anthropic.messages.create(...) )
-
-        const claudeResponseContent = msg.content[0].text;
-        console.log("Claude raw response:", claudeResponseContent); // Keep this for debugging
-
-        let claudeAnalysis;
         try {
             // Remove markdown code blocks if present (```json ... ```)
             let cleanedResponse = claudeResponseContent.replace(/```json\n|```/g, '').trim();
 
-            // Find the first opening brace and the last closing brace
-            const firstBrace = cleanedResponse.indexOf('{');
-            const lastBrace = cleanedResponse.lastIndexOf('}');
+            // Use a regular expression to find the first JSON object.
+            // This is more robust as it ignores leading/trailing non-JSON text.
+            const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
 
-            if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
-                throw new Error("No valid JSON object found in Claude's response.");
+            if (!jsonMatch || !jsonMatch[0]) {
+                throw new Error("No complete JSON object found in Claude's response after cleaning.");
             }
 
-            // Extract only the JSON part
-            const jsonString = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            // The matched string (the full JSON object) is in jsonMatch[0]
+            const jsonString = jsonMatch[0];
 
             claudeAnalysis = JSON.parse(jsonString); // Attempt to parse the extracted string
 
@@ -119,15 +109,6 @@ module.exports = async (req, res) => {
             // Provide more context in the error message for easier debugging
             throw new Error("Claude did not return a valid JSON format. Raw response (partial): " + claudeResponseContent.substring(0, 500) + "...");
         }
-
-        // Send the parsed JSON analysis back to the frontend
-        res.status(200).json(claudeAnalysis);
-
-    } catch (error) {
-        console.error('Error in analyze-with-claude function:', error.message);
-        res.status(500).json({ error: 'Failed to analyze data with Claude: ' + error.message });
-    }
-};
 
         // Send the parsed JSON analysis back to the frontend
         res.status(200).json(claudeAnalysis);
