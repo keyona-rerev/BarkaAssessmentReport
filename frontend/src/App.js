@@ -7,8 +7,8 @@ const BarkaAssessmentApp = () => {
   const [bulkData, setBulkData] = useState('');
   const [scores, setScores] = useState({}); // Stores manual/AI-suggested scores for each subcategory
   const [evidence, setEvidence] = useState({}); // Stores manual/AI-suggested evidence for each subcategory
-  const [strengths, setStrengths] = useState({}); // NEW: Stores AI-generated strengths for each subcategory
-  const [gaps, setGaps] = useState({}); // NEW: Stores AI-generated gaps for each subcategory
+  const [strengths, setStrengths] = useState({}); // Stores AI-generated strengths for each subcategory
+  const [gaps, setGaps] = useState({}); // Stores AI-generated gaps for each subcategory
 
   const [currentPillar, setCurrentPillar] = useState(0);
   const [companyName, setCompanyName] = useState('');
@@ -25,11 +25,11 @@ const BarkaAssessmentApp = () => {
       icon: <Calculator className="w-6 h-6" />,
       color: "bg-blue-500",
       subcategories: [
-        { name: "Financial Statements", weight: 0.25, keywords: ["audited", "financial statements", "bookkeeping"] },
-        { name: "Budgeting Process", weight: 0.10, keywords: ["budget", "forecasting", "planning"] },
-        { name: "Financial Reporting", weight: 0.20, keywords: ["reports", "transparency", "investor"] },
-        { name: "Financial Performance", weight: 0.40, keywords: ["profitability", "cash flow", "revenue"] },
-        { name: "Fundraising", weight: 0.15, keywords: ["fundraising", "investors", "capital"] }
+        { name: "Financial Statements", weight: 0.25, keywords: ["audited", "financial statements", "bookkeeping"] }, // Adjusted from 0.25
+        { name: "Budgeting Process", weight: 0.10, keywords: ["budget", "forecasting", "planning"] }, // Adjusted from 0.10
+        { name: "Financial Reporting", weight: 0.20, keywords: ["reports", "transparency", "investor"] }, // Adjusted from 0.20
+        { name: "Financial Performance", weight: 0.30, keywords: ["profitability", "cash flow", "revenue"] }, // Adjusted from 0.40 to 0.30 (Total 1.00)
+        { name: "Fundraising", weight: 0.15, keywords: ["fundraising", "investors", "capital"] } // Adjusted from 0.15
       ]
     },
     {
@@ -38,10 +38,10 @@ const BarkaAssessmentApp = () => {
       icon: <TrendingUp className="w-6 h-6" />,
       color: "bg-green-500",
       subcategories: [
-        { name: "Risk Management", weight: 0.50, keywords: ["risk", "mitigation", "assessment"] },
-        { name: "Business Model", weight: 0.40, keywords: ["business model", "value proposition", "strategy"] },
-        { name: "Market Analysis", weight: 0.30, keywords: ["market", "competition", "analysis"] },
-        { name: "Growth Strategy", weight: 0.30, keywords: ["growth", "vision", "expansion"] }
+        { name: "Risk Management", weight: 0.35, keywords: ["risk", "mitigation", "assessment"] }, // Adjusted from 0.50 to 0.35
+        { name: "Business Model", weight: 0.25, keywords: ["business model", "value proposition", "strategy"] }, // Adjusted from 0.40 to 0.25
+        { name: "Market Analysis", weight: 0.20, keywords: ["market", "competition", "analysis"] }, // Adjusted from 0.30 to 0.20
+        { name: "Growth Strategy", weight: 0.20, keywords: ["growth", "vision", "expansion"] } // Adjusted from 0.30 to 0.20 (Total 1.00)
       ]
     },
     {
@@ -194,6 +194,7 @@ const BarkaAssessmentApp = () => {
             .pillar { margin: 20px 0; padding: 15px; border-left: 4px solid #3b82f6; background: #f8fafc; }
             .section { margin: 20px 0; }
             .section h3 { color: #1e40af; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+            .section h6 { color: #2563eb; margin-top: 10px; margin-bottom: 5px; font-size: 0.9em; } /* For Strengths/Gaps headings */
             .subcategory-detail { margin-top: 10px; padding-left: 15px; border-left: 2px solid #e5e7eb; }
             .detail-list { list-style-type: disc; margin-left: 20px; }
             .detail-list li { margin-bottom: 5px; }
@@ -248,9 +249,22 @@ const BarkaAssessmentApp = () => {
       .map(([key, value]) => {
         const [pillarIdx, subIdx] = key.split('-').map(Number);
         const pillar = pillars[pillarIdx];
-        const subcategory = pillar.subcategories[subIdx];
+        const subcategory = pillar.subcategories[subIdx]; // FIX: Corrected from pillar.subIdx to pillar.subcategories[subIdx]
         return `<li><strong>${pillar.name} - ${subcategory.name}:</strong> ${value}</li>`;
       }).join('');
+
+    // Collect all specific gaps for a consolidated Recommendations section
+    const allGaps = [];
+    pillars.forEach((pillar, pillarIndex) => {
+      pillar.subcategories.forEach((subcategory, subIndex) => {
+        const key = `${pillarIndex}-${subIndex}`;
+        const subGaps = gaps[key] || [];
+        if (subGaps.length > 0) {
+          allGaps.push(`<strong>${pillar.name} - ${subcategory.name}:</strong>`);
+          allGaps.push(...subGaps); // Add individual gap items
+        }
+      });
+    });
 
     return `
       <div class="header">
@@ -331,6 +345,17 @@ const BarkaAssessmentApp = () => {
         </ul>
       </div>
 
+      <div class="section">
+        <h3>Assessor Information</h3>
+        <p><strong>Assessor:</strong> Barka Assessment Team</p>
+        <p><strong>Date of Assessment:</strong> ${new Date().toLocaleDateString()}</p>
+      </div>
+
+      <div class="section">
+        <h3>Methodology Notes</h3>
+        <p>This report is based on the Barka Investment Readiness Framework, which assesses companies across five key pillars: Financial, Business Strategy, Legal & Operations, People & Communication, and Impact. Scores are assigned on a 1-5 scale, with 5 indicating optimal performance. Data is derived from provided company documentation and advanced AI analysis, which identifies specific strengths and areas for improvement.</p>
+      </div>
+
       ${overallEvidenceList ? `
         <div class="section">
           <h3>General Supporting Evidence (from manual input)</h3>
@@ -340,19 +365,19 @@ const BarkaAssessmentApp = () => {
         </div>
       ` : ''}
 
-      <div class="section">
-        <h3>General Recommendations</h3>
-        ${finalReport.level === 'Investment Ready' ?
-          '<ul><li>Prepare due diligence materials</li><li>Develop investor pitch materials</li><li>Consider optimization of existing processes</li></ul>' :
-          finalReport.level === 'Near Ready' ?
-            '<ul><li>Address identified gaps in 6-12 months</li><li>Strengthen documentation and processes</li><li>Implement regular monitoring systems</li><li>Consider professional guidance for weak areas</li></ul>' :
-            '<ul><li>Focus on foundational system development (12-24 months)</li><li>Establish basic documentation and processes</li><li>Build management capabilities</li><li>Consider capacity building support</li></ul>'
-        }
-      </div>
+      ${allGaps.length > 0 ? `
+        <div class="section">
+          <h3>Recommendations & Improvement Plan</h3>
+          <p>Based on the assessment, the following areas have been identified for improvement:</p>
+          <ul class="detail-list">
+            ${allGaps.map(gap => `<li>${gap}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
 
       <div class="section">
         <h3>Next Steps</h3>
-        <p>This assessment provides a baseline for investment readiness. Regular reassessment is recommended as the company develops its capabilities and systems.</p>
+        <p>This assessment provides a baseline for investment readiness. Regular reassessment is recommended as the company develops its capabilities and systems. Companies are encouraged to prioritize addressing the identified gaps to enhance their attractiveness to potential investors.</p>
       </div>
     `;
   };
@@ -624,7 +649,7 @@ The system will analyze this text and suggest scores based on documented evidenc
                     />
                   </div>
 
-                  {/* NEW: Manual input for Strengths and Gaps if not applying AI suggestion */}
+                  {/* Manual input for Strengths and Gaps if not applying AI suggestion */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">
                       Strengths (comma-separated)
